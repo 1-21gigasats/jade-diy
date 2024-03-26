@@ -76,9 +76,56 @@ fi
 cd "${jade_save_directory}"
 jade_version="$(git describe --tags)"
 
+[ -f sdkconfig ] && mv sdkconfig sdkconfig.bak  # make sure sdkconfig is removed from previous builds
+
 cp configs/sdkconfig_display_ttgo_tdisplay.defaults sdkconfig.defaults
-sed -i.bak '/CONFIG_DEBUG_MODE/d' ./sdkconfig.defaults
+sed -i.bak '/CONFIG_DEBUG_MODE/d' sdkconfig.defaults
 sed -i.bak '1s/^/CONFIG_LOG_DEFAULT_LEVEL_NONE=y\n/' sdkconfig.defaults
+
+read -p "Do you want to enable Secure Boot or is Secure Boot already enabled? (y/n): " enable_secure_boot
+if [[ "$enable_secure_boot" == "y" ]]; then
+  echo "WARNING: You are about to enable Secure Boot on your device. This process is irreversible. Once Secure Boot is enabled, all future installations, updates, or firmware modifications will require the signing key created during this process. It is crucial to store the signing key (~/jade-diy.pem) in a secure, offline location and remove it from your computer to prevent unauthorized access."
+
+  echo "Please ensure that you have backed up the signing key and stored it securely offline. Failure to securely store this key could result in being unable to update or modify your device in the future."
+
+  echo "The process will begin in 10 seconds. Press Ctrl+C to cancel."
+  for i in {10..1}; do
+    printf "\rStarting in %d seconds..." "$i"
+    sleep 1
+  done
+
+    if [ ! -f ~/jade-diy.pem ]; then
+      openssl genrsa -out ~/jade-diy.pem 3072
+    fi
+
+    sed -i.bak '/CONFIG_EFUSE_VIRTUAL/d' sdkconfig.defaults
+
+    sed -i.bak '/CONFIG_ESP32_DISABLE_BASIC_ROM_CONSOLE=/d' sdkconfig.defaults
+    echo "CONFIG_ESP32_DISABLE_BASIC_ROM_CONSOLE=y" >> sdkconfig.defaults
+
+    sed -i.bak '/CONFIG_SECURE_DISABLE_ROM_DL_MODE=/d' sdkconfig.defaults
+    echo "CONFIG_SECURE_DISABLE_ROM_DL_MODE=y" >> sdkconfig.defaults
+
+    sed -i.bak '/CONFIG_SECURE_BOOT_SIGNING_KEY=/d' sdkconfig.defaults
+    echo 'CONFIG_SECURE_BOOT_SIGNING_KEY="../../../jade-diy.pem"' >> sdkconfig.defaults
+
+    sed -i.bak '/CONFIG_SECURE_BOOT=/d' sdkconfig.defaults
+    echo "CONFIG_SECURE_BOOT=y" >> sdkconfig.defaults
+
+    sed -i.bak '/CONFIG_SECURE_FLASH_ENC_ENABLED=/d' sdkconfig.defaults
+    echo "CONFIG_SECURE_FLASH_ENC_ENABLED=y" >> sdkconfig.defaults
+
+    sed -i.bak '/CONFIG_SECURE_FLASH_ENCRYPTION_MODE_RELEASE=/d' sdkconfig.defaults
+    echo "CONFIG_SECURE_FLASH_ENCRYPTION_MODE_RELEASE=y" >> sdkconfig.defaults
+
+    sed -i.bak '/CONFIG_ESP32_REV_MIN_/d' sdkconfig.defaults  # remove all REV_MIN entries
+    echo "CONFIG_ESP32_REV_MIN_3=y" >> sdkconfig.defaults
+
+    echo "Secure Boot configuration has been updated in sdkconfig.defaults... building bootloader"
+    idf.py bootloader
+else
+    echo "Secure Boot has not been enabled."
+fi
 rm sdkconfig.defaults.bak
 
 idf.py build
@@ -95,6 +142,19 @@ if [ "${initial_tty_device_permissions:2}" -lt 6 ]; then
   echo
 fi
 
-idf.py flash
-
+if [[ "$enable_secure_boot" == "y" ]]; then
+  echo "Flashing bootloader..."
+  sleep 2
+  esptool.py --chip esp32 --before=default_reset --after=no_reset write_flash --flash_mode dio --flash_freq 40m --flash_size keep 0x1000 build/bootloader/bootloader.bin
+  echo "Flashing app..."
+  sleep 2
+  esptool.py --before default_reset --after no_reset --chip esp32  write_flash --flash_mode dio --flash_size keep --flash_freq 40m 0x9000 build/partition_table/partition-table.bin 0xe000 build/ota_data_initial.bin 0x10000 build/jade.bin
+  echo -e "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+  echo -e "Flash complete, NOW WAIT FOR THE DEVICE TO BOOT PROPERLY OR IT WILL BRICK!!!"
+  echo -e "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+  sleep 5
+  idf.py monitor
+else
+  idf.py flash
+fi
 echo -e "\nSUCCESS! Jade ${jade_version} is now installed on your ${chosen_device}.\nYou can close this window.\n"
