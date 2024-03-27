@@ -15,7 +15,7 @@ working_directory="${HOME}/Downloads/diy_jade"
 temp_directory="${working_directory}/temp"
 trap cleanup EXIT
 
-jade_git_tag="1.0.28"
+jade_git_tag="1.0.29"
 jade_save_directory="${working_directory}/jade"
 jade_repo_url="https://github.com/blockstream/jade.git"
 
@@ -82,13 +82,28 @@ cp configs/sdkconfig_display_ttgo_tdisplay.defaults sdkconfig.defaults
 sed -i.bak '/CONFIG_DEBUG_MODE/d' sdkconfig.defaults
 sed -i.bak '1s/^/CONFIG_LOG_DEFAULT_LEVEL_NONE=y\n/' sdkconfig.defaults
 
-read -p "Do you want to enable Secure Boot or is Secure Boot already enabled? (y/n): " enable_secure_boot
-if [[ "$enable_secure_boot" == "y" ]]; then
-  echo "WARNING: You are about to enable Secure Boot on your device. This process is irreversible. Once Secure Boot is enabled, all future installations, updates, or firmware modifications will require the signing key created during this process. It is crucial to store the signing key (~/jade-diy.pem) in a secure, offline location and remove it from your computer to prevent unauthorized access."
+echo "Would you like to enable Secure Boot?"
+echo "Your options are:"
+echo "  y - Yes (enable Secure Boot)"
+echo "  n - No (do not enable Secure Boot or upgrade Secure Boot disabled device)"
+echo "  u - Upgrade (upgrade existing Secure Boot enabled device)"
 
-  echo "Please ensure that you have backed up the signing key and stored it securely offline. Failure to securely store this key could result in being unable to update or modify your device in the future."
+while true; do
+    read -p "Please select an option (y/n/u): " enable_secure_boot
+    case $enable_secure_boot in
+        [Yy]* ) echo "Secure Boot is being enabled..."; break;;
+        [Nn]* ) echo "Secure Boot will not be enabled."; break;;
+        [Uu]* ) echo "Secure Boot enabled device will be upgraded."; break;;
+        * ) echo "Invalid option, please enter y, n, or u.";;
+    esac
+done
 
-  echo "The process will begin in 10 seconds. Press Ctrl+C to cancel."
+if [[ "$enable_secure_boot" == "y" ]] || [[ "$enable_secure_boot" == "u" ]]; then
+  echo -e "\nWARNING: You are about to enable Secure Boot on your device. This process is irreversible. Once Secure Boot is enabled, all future installations, updates, or firmware modifications will require the signing key created during this process. It is crucial to store the signing key (~/jade-diy.pem) in a secure, offline location and remove it from your computer to prevent unauthorized access.\n\n"
+
+  echo -e "Please ensure that you have backed up the signing key and stored it securely offline. Failure to securely store this key could result in being unable to update or modify your device in the future.\n\n"
+
+  echo -e "The process will begin in 10 seconds. Press Ctrl+C to cancel."
   for i in {10..1}; do
     printf "\rStarting in %d seconds..." "$i"
     sleep 1
@@ -142,6 +157,16 @@ if [ "${initial_tty_device_permissions:2}" -lt 6 ]; then
   echo
 fi
 
+if [[ "$enable_secure_boot" == "u" ]]; then
+  echo "Upgrading secure boot enabled device... please confirm on screen"
+  pip install cbor2
+  # workaround to prevent changed idf manifest hash to flag build as dirty see https://github.com/Blockstream/Jade/issues/98
+  git restore dependencies.lock
+  ./jade_ota.py --noagent
+  [ $? -eq  0 ] && echo "Update finished"
+  exit 0
+fi
+
 if [[ "$enable_secure_boot" == "y" ]]; then
   echo "Flashing bootloader..."
   sleep 2
@@ -149,9 +174,9 @@ if [[ "$enable_secure_boot" == "y" ]]; then
   echo "Flashing app..."
   sleep 2
   esptool.py --before default_reset --after no_reset --chip esp32  write_flash --flash_mode dio --flash_size keep --flash_freq 40m 0x9000 build/partition_table/partition-table.bin 0xe000 build/ota_data_initial.bin 0x10000 build/jade.bin
-  echo -e "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-  echo -e "Flash complete, NOW WAIT FOR THE DEVICE TO BOOT PROPERLY OR IT WILL BRICK!!!"
-  echo -e "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+  echo -e "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+  echo -e "!!!    Flash complete, NOW WAIT FOR THE DEVICE TO BOOT PROPERLY OR IT WILL BRICK   !!!"
+  echo -e "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
   sleep 5
   idf.py monitor
 else
