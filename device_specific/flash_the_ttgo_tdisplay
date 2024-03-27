@@ -88,15 +88,19 @@ echo "  y - Yes (enable Secure Boot)"
 echo "  n - No (do not enable Secure Boot or upgrade Secure Boot disabled device)"
 echo "  u - Upgrade (upgrade existing Secure Boot enabled device)"
 
-while true; do
+if [ "${CI:-false}" = true ]; then
+  enable_secure_boot=n
+else
+  while true; do
     read -p "Please select an option (y/n/u): " enable_secure_boot
     case $enable_secure_boot in
-        [Yy]* ) echo "Secure Boot is being enabled..."; break;;
-        [Nn]* ) echo "Secure Boot will not be enabled."; break;;
-        [Uu]* ) echo "Secure Boot enabled device will be upgraded."; break;;
-        * ) echo "Invalid option, please enter y, n, or u.";;
+      [Yy]* ) echo "Secure Boot is being enabled..."; break;;
+      [Nn]* ) echo "Secure Boot will not be enabled."; break;;
+      [Uu]* ) echo "Secure Boot enabled device will be upgraded."; break;;
+      * ) echo "Invalid option, please enter y, n, or u.";;
     esac
-done
+  done
+fi
 
 if [[ "$enable_secure_boot" == "y" ]] || [[ "$enable_secure_boot" == "u" ]]; then
   echo -e "\nWARNING: You are about to enable Secure Boot on your device. This process is irreversible. Once Secure Boot is enabled, all future installations, updates, or firmware modifications will require the signing key created during this process. It is crucial to store the signing key (~/jade-diy.pem) in a secure, offline location and remove it from your computer to prevent unauthorized access.\n\n"
