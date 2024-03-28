@@ -1,4 +1,44 @@
-# Jade Do-It-Yourself Hardware Guide
+# Jade Do-It-Yourself Hardware Guide - Workshop Edition
+
+This is the forked version of the Jade DIY Guide made by **epiccurious** with the following changes:
+
+- Optionally enable secure boot and OTA updates
+- Fixed a security-relevant bug
+- Removed all non-TTGO scripts
+
+This makes it ideal for workshop sessions where every participant can easily build a device with a single command execution.
+
+## Usage
+
+This guide assumes that you are using a Debian-based Linux distribution.
+
+First, install the required dependencies:
+
+```bash
+sudo apt update && sudo apt install cmake git openssl python3-pip python3-venv
+```
+
+If you use another Linux distro or OSX, read the official ESP-IDF guide on how to install the requirements:
+
+[ESP-IDF Installation Guide](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/linux-macos-setup.html)
+
+Then run the script either by cloning the repo first or running it directly:
+
+```bash
+/bin/bash -c "$(curl -sSL https://github.com/1-21gigasats/jade-diy/raw/workshop/flash_the_ttgo_tdisplay)"
+```
+
+## Secure Boot Warning
+
+The script will ask you if you want to enable secure boot. This is a one-time process. Only enable it if you're sure that everything works.
+
+Don't remove the device too early while secure boot encryption is in process. This will brick the device!
+
+## Upgrading Jade / ESP-IDF
+
+To upgrade the Jade and ESP-IDF, change the variables inside the script. Also, make sure to completely remove previous builds from `~/Downloads/diy_jade/` or updates won't be pulled.
+
+# Original Project documentation
 
 This guide is designed for the general user who is not incompetant with computers and is looking to secure **less** than $100,000 (in 2023 prices) worth of bitcoin.
 
